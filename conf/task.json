@@ -1,0 +1,65 @@
+{
+  "family": "${GITLAB_RUNNER_JOB_ID}",
+  "networkMode": "awsvpc",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${AWS_ECS_TASK_EXECUTION_ROLE}",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${AWS_ECS_TASK_ROLE}",
+  "cpu": "${AWS_ECS_TASK_CPU}",
+  "memory": "${AWS_ECS_TASK_MEM}",
+  "containerDefinitions": [
+    {
+      "name": "gitlab-runner",
+      "image": "gitlab/gitlab-runner:alpine",
+      "entryPoint": ["/usr/bin/env"],
+      "command": ["/bin/sleep", "1h"],
+      "healthCheck": {
+        "interval": 5,
+        "retries": 10,
+        "command": ["CMD", "[", "-f", "/mnt/ready", "]"]
+      },
+      "portMappings": [
+        {"containerPort": 22}
+      ],
+      "mountPoints": [
+        {"containerPath": "/mnt", "sourceVolume": "data"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/ecs/gitlab-runner",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "${GITLAB_RUNNER_JOB_ID}-gitlab-runner"
+        }
+      }
+    },
+    {
+      "name": "gitlab-job",
+      "image": "${CUSTOM_ENV_CI_JOB_IMAGE}",
+      "command": ["/bin/sleep", "1h"],
+      "healthCheck": {
+        "interval": 5,
+        "retries": 10,
+        "command": ["CMD", "/mnt/runner/lib/libc.musl-x86_64.so.1", "/mnt/runner/bin/echo", "OK"]
+      },
+      "mountPoints": [
+        {"containerPath": "/mnt", "sourceVolume": "data"}
+      ],
+      "dependsOn": [
+        {"containerName": "gitlab-runner", "condition": "HEALTHY"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/ecs/gitlab-runner",
+          "awslogs-region": "eu-west-1",
+          "awslogs-stream-prefix": "${GITLAB_RUNNER_JOB_ID}-gitlab-job"
+        }
+      }
+    }
+  ],
+  "volumes": [
+    {"name": "data"}
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ]
+}
